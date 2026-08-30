@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "universal-bounty-v2"
+version = "2.0.0"
+description = "Universal Bounty Engine V2 Monolithic Orchestrator & Ephemeral Execution Fleet"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "google-cloud-firestore>=2.14.0",
+    "firebase-admin>=6.4.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.5.0",
+    "imapclient>=3.0.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-timeout>=2.2.0",
+    "pytest-mock>=3.12.0",
+]
+
+[project.scripts]
+bounty = "src.cli:main"
+migrate-queues = "src.migrate:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
