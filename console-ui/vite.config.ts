@@ -1,3 +1,4 @@
+import { resolve } from "path";
 import { defineConfig } from "vite";
 
 export default defineConfig({
@@ -6,6 +7,12 @@ export default defineConfig({
     outDir: "../static/console",
     emptyOutDir: true,
     assetsDir: "assets",
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+        pipeline: resolve(__dirname, "pipeline.html"),
+      },
+    },
   },
   server: {
     port: 5173,
@@ -15,3 +22,4 @@ export default defineConfig({
     },
   },
 });
+

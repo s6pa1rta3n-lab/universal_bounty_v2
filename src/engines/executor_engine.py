@@ -377,6 +377,8 @@ Fixes #{issue_number} in {repo} - {title}
         dry_run: bool = False,
         strategy: str | None = None,
     ) -> dict[str, Any]:
+        if 'base-org' in str(lead_id) or (lead_data and 'base-org' in str(lead_data)):
+            return {'success': False, 'error': 'Blocked by hotfix'}
         """
         Full isolated execution lifecycle for a single bounty lead:
         1. Atomically claim lead in Firestore.
@@ -698,6 +700,8 @@ Fixes #{issue_number} in {repo} - {title}
         dry_run: bool = False,
         strategy: str | None = None,
     ) -> dict[str, Any]:
+        if 'base-org' in str(lead_id) or (lead_data and 'base-org' in str(lead_data)):
+            return {'success': False, 'error': 'Blocked by hotfix'}
         """
         Direct entry point / alias for claim_and_execute_lead.
         Performs atomic claim, comprehensive banned check, execution, and cleanup.
@@ -765,6 +769,8 @@ Fixes #{issue_number} in {repo} - {title}
         skip_clone: bool = False,
         strategy: str | None = None,
     ) -> dict[str, Any]:
+        if 'base-org' in str(lead_id) or (lead_data and 'base-org' in str(lead_data)):
+            return {'success': False, 'error': 'Blocked by hotfix'}
         """Runs single execution sweep."""
         logger.info(f"Executing ExecutorEngine sweep (limit={limit}, dry_run={dry_run}, strategy={strategy or self.execution_strategy})...")
         results = self.execute_pending_leads(

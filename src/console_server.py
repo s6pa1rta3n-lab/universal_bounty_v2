@@ -7,13 +7,43 @@ import mimetypes
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
+
+from src.core.firestore_client import get_firestore_client
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONSOLE_DIR = REPO_ROOT / "static" / "console"
 HISTORY_PATH = REPO_ROOT / "data" / "overseer.json"
 MEMORY_JSONL = REPO_ROOT / "logs" / "offline_firestore" / "bounty_memory.jsonl"
+
+CANONICAL_STAGES = ["queued", "pending_triage", "pr_open", "completed", "failed"]
+
+STAGE_MAPPING: Dict[str, str] = {
+    # queued: 'queued', 'pending_discovery', 'intake'
+    "queued": "queued",
+    "pending_discovery": "queued",
+    "intake": "queued",
+    # pending_triage: 'pending_triage', 'priority_triage', 'triaged'
+    "pending_triage": "pending_triage",
+    "priority_triage": "pending_triage",
+    "triaged": "pending_triage",
+    # pr_open: 'pr_open', 'claimed', 'running_orbstack', 'in_progress', 'draft_pr'
+    "pr_open": "pr_open",
+    "claimed": "pr_open",
+    "running_orbstack": "pr_open",
+    "in_progress": "pr_open",
+    "draft_pr": "pr_open",
+    # completed: 'completed', 'merged', 'paid'
+    "completed": "completed",
+    "merged": "completed",
+    "paid": "completed",
+    # failed: 'failed', 'failed_verification', 'abandoned', 'rejected'
+    "failed": "failed",
+    "failed_verification": "failed",
+    "abandoned": "failed",
+    "rejected": "failed",
+}
 
 
 def _now() -> str:
@@ -79,6 +109,170 @@ def normalize_bounty(doc: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def normalize_status(raw: Optional[str]) -> str:
+    """Standardize raw status into one of 5 canonical stages."""
+    if not raw:
+        return "queued"
+    clean = str(raw).strip().lower()
+    return STAGE_MAPPING.get(clean, "queued")
+
+
+def _format_lead(doc: Any) -> Dict[str, Any]:
+    """Format a Firestore doc snapshot or dict into a standardized lead item."""
+    if hasattr(doc, "to_dict"):
+        d = doc.to_dict() or {}
+        doc_id = str(doc.id)
+    elif isinstance(doc, dict):
+        d = doc
+        doc_id = str(doc.get("id") or doc.get("_id") or "unknown")
+    else:
+        d = {}
+        doc_id = "unknown"
+
+    raw_status = str(d.get("status") or "queued")
+    status = normalize_status(raw_status)
+
+    repo_val = d.get("repo") or d.get("repository") or "unknown"
+    if isinstance(repo_val, dict):
+        repo = str(repo_val.get("nameWithOwner") or repo_val.get("name") or "unknown")
+    else:
+        repo = str(repo_val)
+
+    issue_num_raw = d.get("issue_number")
+    if issue_num_raw is None:
+        issue_num_raw = d.get("number")
+    if issue_num_raw is not None:
+        try:
+            issue_number: Optional[int] = int(issue_num_raw)
+        except (ValueError, TypeError):
+            issue_number = None
+    else:
+        issue_number = None
+
+    pr_num_raw = d.get("pr_number")
+    if pr_num_raw is not None:
+        try:
+            pr_number: Optional[int] = int(pr_num_raw)
+        except (ValueError, TypeError):
+            pr_number = None
+    else:
+        pr_number = None
+
+    # Projected payout USD parsing
+    payout_usd_raw = d.get("projected_payout_usd")
+    if payout_usd_raw is None:
+        payout_usd_raw = d.get("payout_usd")
+    try:
+        projected_payout_usd = float(payout_usd_raw or 0.0)
+    except (ValueError, TypeError):
+        projected_payout_usd = 0.0
+
+    # Projected payout formatted string
+    projected_payout = str(d.get("projected_payout") or "")
+    if not projected_payout:
+        if projected_payout_usd > 0:
+            projected_payout = f"${projected_payout_usd:g}"
+        else:
+            projected_payout = "PENDING DISCOVERY"
+
+    # Escrow verification
+    if d.get("escrow_verified") is not None:
+        escrow_verified = bool(d.get("escrow_verified"))
+    else:
+        escrow_verified = bool(projected_payout_usd > 0)
+
+    # Issue and PR URLs
+    issue_url = d.get("issue_url") or d.get("url")
+    if not issue_url and repo != "unknown" and issue_number is not None:
+        issue_url = f"https://github.com/{repo}/issues/{issue_number}"
+    elif not issue_url:
+        issue_url = ""
+
+    pr_url = d.get("pr_url")
+    if not pr_url and repo != "unknown" and pr_number is not None:
+        pr_url = f"https://github.com/{repo}/pull/{pr_number}"
+    elif not pr_url:
+        pr_url = ""
+
+    return {
+        "id": doc_id,
+        "repo": repo,
+        "issue_number": issue_number,
+        "title": str(d.get("title") or ""),
+        "status": status,
+        "raw_status": raw_status,
+        "projected_payout": projected_payout,
+        "projected_payout_usd": projected_payout_usd,
+        "qualification_reason": str(d.get("qualification_reason") or ""),
+        "ecosystem": str(d.get("ecosystem") or "unknown"),
+        "escrow_verified": escrow_verified,
+        "issue_url": str(issue_url),
+        "pr_url": str(pr_url),
+    }
+
+
+def empty_pipeline_payload() -> Dict[str, Any]:
+    return {
+        "leads": [],
+        "grouped": {
+            "queued": [],
+            "pending_triage": [],
+            "pr_open": [],
+            "completed": [],
+            "failed": [],
+        },
+        "counts": {
+            "queued": 0,
+            "pending_triage": 0,
+            "pr_open": 0,
+            "completed": 0,
+            "failed": 0,
+            "total": 0,
+        },
+    }
+
+
+def pipeline_payload(db: Optional[Any] = None) -> Dict[str, Any]:
+    try:
+        client = db if db is not None else get_firestore_client()
+        docs = client.collection("bounty_leads").stream()
+        leads: List[Dict[str, Any]] = []
+        grouped: Dict[str, List[Dict[str, Any]]] = {
+            "queued": [],
+            "pending_triage": [],
+            "pr_open": [],
+            "completed": [],
+            "failed": [],
+        }
+
+        for doc in docs:
+            item = _format_lead(doc)
+            leads.append(item)
+            st = item["status"]
+            if st in grouped:
+                grouped[st].append(item)
+            else:
+                grouped["queued"].append(item)
+
+        counts = {
+            "queued": len(grouped["queued"]),
+            "pending_triage": len(grouped["pending_triage"]),
+            "pr_open": len(grouped["pr_open"]),
+            "completed": len(grouped["completed"]),
+            "failed": len(grouped["failed"]),
+            "total": len(leads),
+        }
+
+        return {
+            "leads": leads,
+            "grouped": grouped,
+            "counts": counts,
+        }
+    except Exception as e:
+        print(f"[ConsoleServer] Error fetching pipeline: {e}")
+        return empty_pipeline_payload()
+
+
 def registry_payload() -> Dict[str, Any]:
     return {
         "track": "Fortified Enterprise Fleet",
@@ -106,44 +300,64 @@ def registry_payload() -> Dict[str, Any]:
     }
 
 
-def dispatch(path: str) -> Tuple[int, str, bytes]:
+def dispatch(path: str, db: Optional[Any] = None) -> Tuple[int, str, bytes]:
     parsed = urlparse(path)
     route = parsed.path or "/"
 
     if route in {"/health", "/healthz"}:
-        return 200, "application/json", json.dumps({"status": "healthy", "service": "universal-bounty-v2"}).encode()
+        return 200, "application/json; charset=utf-8", json.dumps({"status": "healthy", "service": "universal-bounty-v2"}).encode()
+
+    if route == "/api/pipeline":
+        return 200, "application/json; charset=utf-8", json.dumps(pipeline_payload(db=db)).encode()
 
     if route == "/api/registry":
-        return 200, "application/json", json.dumps(registry_payload()).encode()
+        return 200, "application/json; charset=utf-8", json.dumps(registry_payload()).encode()
 
     if route == "/api/bounties/latest":
         doc = latest_memory_doc()
         bounty = normalize_bounty(doc) if doc else None
-        return 200, "application/json", json.dumps({"bounty": bounty}).encode()
+        return 200, "application/json; charset=utf-8", json.dumps({"bounty": bounty}).encode()
 
     if route == "/api/history":
-        return 200, "application/json", json.dumps(overseer_payload()).encode()
+        return 200, "application/json; charset=utf-8", json.dumps(overseer_payload()).encode()
 
-    if route.startswith("/console"):
+    if route == "/console" or route.startswith("/console/"):
         rel = route[len("/console") :].lstrip("/")
-        if rel.startswith("assets/"):
-            asset = (CONSOLE_DIR / rel).resolve()
-            if CONSOLE_DIR.resolve() not in asset.parents and asset != CONSOLE_DIR.resolve():
-                return 404, "text/plain", b"not found"
-            if asset.is_file():
-                mime = mimetypes.guess_type(str(asset))[0] or "application/octet-stream"
-                return 200, mime, asset.read_bytes()
-            return 404, "text/plain", b"not found"
+        base_dir = CONSOLE_DIR.resolve()
+
+        if rel:
+            try:
+                target = (CONSOLE_DIR / rel).resolve()
+            except Exception:
+                return 404, "text/plain; charset=utf-8", b"not found"
+
+            # Path traversal security check
+            try:
+                target.relative_to(base_dir)
+            except ValueError:
+                return 404, "text/plain; charset=utf-8", b"not found"
+
+            if target.is_file():
+                mime, _ = mimetypes.guess_type(str(target))
+                if not mime:
+                    mime = "application/octet-stream"
+                elif mime.startswith("text/") or mime in ("application/javascript", "application/json"):
+                    if "charset" not in mime:
+                        mime = f"{mime}; charset=utf-8"
+                return 200, mime, target.read_bytes()
+
+        # SPA fallback to index.html if rel is empty or file doesn't exist
         index = CONSOLE_DIR / "index.html"
         if index.exists():
             return 200, "text/html; charset=utf-8", index.read_bytes()
+
         hint = (
             "<!doctype html><title>Fleet Console</title>"
             "<p>Build the console first: <code>cd console-ui && npm install && npm run build</code></p>"
         )
         return 503, "text/html; charset=utf-8", hint.encode()
 
-    return 404, "text/plain", b"not found"
+    return 404, "text/plain; charset=utf-8", b"not found"
 
 
 class ConsoleHandler(BaseHTTPRequestHandler):
@@ -163,3 +377,8 @@ class ConsoleHandler(BaseHTTPRequestHandler):
 def serve_console(host: str = "127.0.0.1", port: int = 8080) -> None:
     server = ThreadingHTTPServer((host, port), ConsoleHandler)
     server.serve_forever()
+
+
+if __name__ == "__main__":
+    print("Starting Console Server at http://127.0.0.1:8000")
+    serve_console("127.0.0.1", 8000)
