@@ -1,9 +1,9 @@
 import sys
-from src.core.firestore_client import OfflineFirestoreClient
+from src.core.firestore_client import get_firestore_client
 from src.core.config import COLLECTION_SWARM_COORDINATOR
 
 def run_monitor():
-    db = OfflineFirestoreClient()
+    db = get_firestore_client()
     coordinator_ref = db.collection(COLLECTION_SWARM_COORDINATOR).document("state")
     
     state_snap = coordinator_ref.get()

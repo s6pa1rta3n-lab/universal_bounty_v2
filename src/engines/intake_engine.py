@@ -449,21 +449,36 @@ class IntakeEngine:
         if doc_id in self.seen_issues:
             return None
 
+        author_field = issue_node.get("author") or {}
+        author_login = (
+            author_field.get("login") if isinstance(author_field, dict) else str(author_field)
+        )
+
+        is_fleet_meta = (
+            repo_name.lower() == "s6pa1rta3n-lab/universal_bounty_fleet"
+            and "ankur" in str(author_login).lower()
+        )
+
         # Apply Sniper Filter
         is_valid, reason, payout_str, payout_val, is_high_priority, ecosystem = verify_escrow(
             issue_node
         )
+
+        if is_fleet_meta:
+            is_valid = True
+            is_high_priority = True
+            reason = "META_INTERNAL_PRIORITY"
+            payout_str = "INTERNAL_MAINTENANCE"
+            payout_val = 999999.0
+            ecosystem = "internal"
+            logger.info(f"🚀 [META] Fast-tracking internal fleet issue from Ankur: {repo_name}#{issue_number}")
+
         if not is_valid:
             logger.debug(f"Discarding unqualified issue {repo_name}#{issue_number}: {reason}")
             return None
 
         status = "queued"
         priority = "high" if is_high_priority else "standard"
-
-        author_field = issue_node.get("author") or {}
-        author_login = (
-            author_field.get("login") if isinstance(author_field, dict) else str(author_field)
-        )
 
         labels_nodes = get_nodes(issue_node.get("labels"))
         labels = [
