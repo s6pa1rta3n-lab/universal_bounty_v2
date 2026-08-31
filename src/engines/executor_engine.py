@@ -197,8 +197,10 @@ Target: {repo} Issue #{issue_number}
         if not dry_run:
             logger.info(f"[TeamworkSwarmDelegator] Spawning Antigravity Agent for {repo}#{issue_number}")
             try:
+                import os
+                agentapi_path = os.path.expanduser("~/.gemini/antigravity/bin/agentapi")
                 result = subprocess.run(
-                    ["agentapi", "new-conversation", f"--title={title}", prompt],
+                    [agentapi_path, "new-conversation", f"--title={title}", prompt],
                     capture_output=True,
                     text=True,
                     check=True
