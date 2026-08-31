@@ -38,7 +38,7 @@
             <span id="health-label">live</span>
           </span>
           <span id="pipeline-total-badge" class="summary-pill">0 LEADS</span>
-          <span id="clock">00:00:00Z</span>
+          <span id="clock">connecting...</span>
         </div>
       </header>
 
@@ -102,9 +102,9 @@
         </div>
 
         <!-- Floating Glassmorphic HUD Inspector Panel -->
-        <aside id="pipeline-hud" class="hud-panel empty" aria-live="polite" aria-label="Bounty Lead Inspector">
+        <aside id="pipeline-hud" class="hud-panel empty" style="display: none;" aria-live="polite" aria-label="Bounty Lead Inspector">
           <div class="hud-header">
-            <div class="hud-kicker">CONSTELLATION INSPECTOR</div>
+            <div class="hud-kicker">PIPELINE INSPECTOR</div>
             <button id="hud-close-btn" class="hud-close-btn" aria-label="Close Inspector" title="Dismiss Inspector">×</button>
           </div>
           <div id="hud-content" class="hud-body">
@@ -140,7 +140,7 @@
           <span id="last-sync-time" class="footer-item">Last sync: --:--:--Z</span>
         </div>
         <div class="footer-right">
-          <span class="footer-item">Total Pipeline Value: <b id="total-pipeline-value">$0.00</b></span>
+          
         </div>
       </footer>
     </div>

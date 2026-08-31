@@ -710,6 +710,7 @@ export class PipelineEngine {
 
     if (!lead) {
       hud.classList.add("empty");
+      hud.style.display = "none";
       hudContent.innerHTML = `
         <div class="hud-placeholder">
           <div class="hud-placeholder-icon">✦</div>
@@ -721,6 +722,7 @@ export class PipelineEngine {
     }
 
     hud.classList.remove("empty");
+    hud.style.display = "flex";
 
     const stageLabel = lead.status.replace("_", " ").toUpperCase();
     const escrowClass = lead.escrow_verified ? "" : "unverified";
