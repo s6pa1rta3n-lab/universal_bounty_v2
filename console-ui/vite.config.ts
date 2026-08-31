@@ -10,7 +10,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
-        
+        pipeline: resolve(__dirname, "pipeline.html"),
       },
     },
   },
@@ -22,4 +22,3 @@ export default defineConfig({
     },
   },
 });
-

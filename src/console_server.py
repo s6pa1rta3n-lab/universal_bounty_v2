@@ -346,7 +346,12 @@ def dispatch(path: str, db: Optional[Any] = None) -> Tuple[int, str, bytes]:
                         mime = f"{mime}; charset=utf-8"
                 return 200, mime, target.read_bytes()
 
-        # SPA fallback to index.html if rel is empty or file doesn't exist
+        # SPA fallback
+        if not rel or rel == "/":
+            pipeline = CONSOLE_DIR / "pipeline.html"
+            if pipeline.exists():
+                return 200, "text/html; charset=utf-8", pipeline.read_bytes()
+        
         index = CONSOLE_DIR / "index.html"
         if index.exists():
             return 200, "text/html; charset=utf-8", index.read_bytes()

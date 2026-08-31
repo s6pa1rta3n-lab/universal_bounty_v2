@@ -3,149 +3,40 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Universal Bounty Fleet — Pipeline Constellation</title>
+    <title>Fleet Console — Universal Bounty Fleet</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <script type="module" crossorigin src="/console/assets/main-lmsOaqqJ.js"></script>
-    <link rel="stylesheet" crossorigin href="/console/assets/main-BmfzraV1.css">
+    <script type="module" crossorigin src="/console/assets/main-BANbdszy.js"></script>
+    <link rel="modulepreload" crossorigin href="/console/assets/three.module-Bcl9ZI_9.js">
+    <link rel="stylesheet" crossorigin href="/console/assets/main-Ce8vj0Q5.css">
   </head>
   <body>
-    <!-- Full-screen WebGL Canvas for Three.js 3D Scene -->
-    <canvas id="pipeline-canvas" aria-label="3D Constellation Pipeline Scene"></canvas>
-
-    <!-- Glassmorphic HUD & Overlay Layout Container -->
-    <div class="pipeline-wrap">
-      <!-- Navigation Header matching index.html console layout -->
+    <canvas id="universe" aria-hidden="true"></canvas>
+    <div class="wrap">
       <header class="nav">
-        <a class="brand" href="/console">
+        <a class="brand" href="/console" data-route="live">
           <div class="mark">UB</div>
           <span>Universal Bounty Fleet</span>
         </a>
-        <nav class="routes" aria-label="Console Navigation">
-          <a href="/console" class="active">Live</a>
-          <a href="/console/ops">Ops</a>
-          <a href="/console/history">History</a>
-          <a href="/console/claims">Claims</a>
-          <a href="/console/archive">Archive</a>
-          
+        <nav class="routes" aria-label="Console">
+          <a href="/console" data-route="live">Live</a>
+          <a href="/console/ops" data-route="ops">Ops</a>
+          <a href="/console/history" data-route="history">History</a>
+          <a href="/console/claims" data-route="claims">Claims</a>
+          <a href="/console/archive" data-route="archive">Archive</a>
         </nav>
         <div class="nav-meta">
-          <span class="live">
-            <i id="health-dot" class="dot ok"></i>
-            <span id="health-label">live</span>
-          </span>
-          <span id="pipeline-total-badge" class="summary-pill">0 LEADS</span>
-          <span id="clock">connecting...</span>
+          <span class="live"><i id="health-dot" class="dot bad"></i><span id="health-label">offline</span></span>
+          <span id="clock">00:00:00Z</span>
         </div>
       </header>
-
-      <!-- Stage Filter & Constellation Camera Focus Bar -->
-      <section class="stage-bar" aria-label="Pipeline Constellation Stages">
-        <div class="stage-chips" id="stage-chips">
-          <button class="stage-chip active" data-stage="all" title="View all constellations in orbital overview">
-            <span class="chip-dot dot-all"></span>
-            <span class="chip-label">All Stages</span>
-            <span class="chip-count" id="count-all">0</span>
-          </button>
-          <button class="stage-chip" data-stage="queued" title="Focus Queued Constellation">
-            <span class="chip-dot dot-queued"></span>
-            <span class="chip-label">Queued</span>
-            <span class="chip-count" id="count-queued">0</span>
-          </button>
-          <button class="stage-chip" data-stage="pending_triage" title="Focus Pending Triage Constellation">
-            <span class="chip-dot dot-pending_triage"></span>
-            <span class="chip-label">Pending Triage</span>
-            <span class="chip-count" id="count-pending_triage">0</span>
-          </button>
-          <button class="stage-chip" data-stage="pr_open" title="Focus PR Open Constellation">
-            <span class="chip-dot dot-pr_open"></span>
-            <span class="chip-label">PR Open</span>
-            <span class="chip-count" id="count-pr_open">0</span>
-          </button>
-          <button class="stage-chip" data-stage="completed" title="Focus Completed Constellation">
-            <span class="chip-dot dot-completed"></span>
-            <span class="chip-label">Completed</span>
-            <span class="chip-count" id="count-completed">0</span>
-          </button>
-          <button class="stage-chip" data-stage="failed" title="Focus Failed Constellation">
-            <span class="chip-dot dot-failed"></span>
-            <span class="chip-label">Failed</span>
-            <span class="chip-count" id="count-failed">0</span>
-          </button>
-        </div>
-
-        <div class="view-actions">
-          <button id="btn-reset-view" class="action-btn" title="Reset camera to default orbital viewpoint">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-              <path d="M3 3v5h5"/>
-            </svg>
-            <span>Reset View</span>
-          </button>
-        </div>
-      </section>
-
-      <!-- Main Stage Container (Canvas passes through, HUD and controls overlay) -->
-      <main class="pipeline-main">
-        <!-- 3D Controls Legend & Telemetry Hints -->
-        <div class="interaction-hint">
-          <span class="hint-item"><b>Left Drag</b> Orbit</span>
-          <span class="hint-sep">•</span>
-          <span class="hint-item"><b>Right Drag</b> Pan</span>
-          <span class="hint-sep">•</span>
-          <span class="hint-item"><b>Scroll</b> Zoom</span>
-          <span class="hint-sep">•</span>
-          <span class="hint-item"><b>Click Node</b> Inspect</span>
-        </div>
-
-        <!-- Floating Glassmorphic HUD Inspector Panel -->
-        <aside id="pipeline-hud" class="hud-panel empty" style="display: none;" aria-live="polite" aria-label="Bounty Lead Inspector">
-          <div class="hud-header">
-            <div class="hud-kicker">PIPELINE INSPECTOR</div>
-            <button id="hud-close-btn" class="hud-close-btn" aria-label="Close Inspector" title="Dismiss Inspector">×</button>
-          </div>
-          <div id="hud-content" class="hud-body">
-            <div class="hud-placeholder">
-              <div class="hud-placeholder-icon">✦</div>
-              <h3>Select a Gravity Node</h3>
-              <p>Hover or click any bounty star in the constellation graph to inspect lead parameters, escrow guarantees, and PR telemetry.</p>
-            </div>
-          </div>
-        </aside>
-      </main>
-
-      <!-- Floating Dynamic Hover Tooltip -->
-      <div id="pipeline-tooltip" class="pipeline-tooltip" aria-hidden="true">
-        <div class="tooltip-header">
-          <span id="tooltip-status-badge" class="tooltip-badge queued">QUEUED</span>
-          <span id="tooltip-payout" class="tooltip-payout">$0</span>
-        </div>
-        <div id="tooltip-repo" class="tooltip-repo">owner/repo</div>
-        <div id="tooltip-title" class="tooltip-title">Issue Title</div>
-      </div>
-
-      <!-- Live Pipeline Telemetry Footer -->
-      <footer class="pipeline-footer">
-        <div class="footer-left">
-          <span class="footer-item">
-            <span class="pulse-indicator"></span>
-            <span>Real-time Constellation Engine</span>
-          </span>
-          <span class="footer-sep">/</span>
-          <span class="footer-item">Auto-refresh 5s</span>
-          <span class="footer-sep">/</span>
-          <span id="last-sync-time" class="footer-item">Last sync: --:--:--Z</span>
-        </div>
-        <div class="footer-right">
-          
-        </div>
-      </footer>
+      <div id="app"></div>
+      <footer id="gcp"></footer>
     </div>
-
-    <!-- Main 3D Pipeline TypeScript Entry Point -->
+    <span class="sr-only">Fleet Console PENDING BLOCKED</span>
   </body>
 </html>
