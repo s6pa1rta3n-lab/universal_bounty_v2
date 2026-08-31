@@ -10,6 +10,7 @@ Provides unified command-line management for the entire bounty engine fleet:
   bounty inbox    : Drains unread maintainer/CI feedback emails from Gmail IMAP
   bounty migrate  : Ports historical intake queues & Firestore state to V2 schema
   bounty status   : Outputs comprehensive cluster metrics, queue status & settlement totals
+  bounty console  : Serves the Fleet Console SPA against V2 Memory Bank / overseer history
 """
 
 from __future__ import annotations
@@ -289,6 +290,18 @@ def handle_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_console(args: argparse.Namespace) -> int:
+    """Serves the Fleet Console so V2 has the same judging camera as the gateway."""
+    from src.console_server import serve_console
+
+    host = getattr(args, "host", "127.0.0.1")
+    port = getattr(args, "port", 8080)
+    print(f"Fleet Console → http://{host}:{port}/console")
+    print("Routes: /console  /console/ops  /console/history  /console/claims  /console/archive")
+    serve_console(host=host, port=port)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Constructs the unified CLI argument parser."""
     parser = argparse.ArgumentParser(
@@ -370,6 +383,11 @@ def build_parser() -> argparse.ArgumentParser:
     # 8. status
     subparsers.add_parser("status", help="Display cluster queues, PRs, and settlement metrics")
 
+    # 9. console
+    console_p = subparsers.add_parser("console", help="Serve the Fleet Console SPA")
+    console_p.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
+    console_p.add_argument("--port", type=int, default=8080, help="Bind port (default: 8080)")
+
     return parser
 
 
@@ -392,6 +410,7 @@ def main(args_list: Sequence[str] | None = None) -> int:
         "inbox": handle_inbox,
         "migrate": handle_migrate,
         "status": handle_status,
+        "console": handle_console,
     }
 
     handler = handlers.get(args.subcommand)
