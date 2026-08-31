@@ -3,7 +3,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   base: "/console/",
   build: {
-    outDir: "../app/static/console",
+    outDir: "../static/console",
     emptyOutDir: true,
     assetsDir: "assets",
   },

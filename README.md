@@ -11,3 +11,10 @@ Consolidates legacy PM2 background microservices into a unified, scheduled Hourl
 - **Firestore ACID Client**: Full transaction and document lifecycle management with automatic offline JSONL fallback.
 - **State Migration Utility**: `migrate_queues` CLI & API for lossless migration of legacy queues and Firestore records.
 - **Dual-Chain Payout Routing**: Hardcoded EVM and Stellar payout addresses enforced across all PRs.
+- **Fleet Console**: Same judging camera as the Cloud Run gateway (`/console`, `/ops`, `/history`, `/claims`, `/archive`). `bounty console` serves it against V2 Memory Bank and the cleaned overseer ledger.
+
+```bash
+cd console-ui && npm install && npm run build
+bounty console --port 8080
+# http://127.0.0.1:8080/console
+```
